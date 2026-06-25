@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { computed } from 'vue';
 import ProductTypeTabs from '../components/studio/ProductTypeTabs.vue';
 import ProductByRegions from '../components/page/ProductByRegions.vue';
-import {normalizeTipoProdutoId, TIPOS_PRODUTO_LABELS} from '../default/catalog'
+import {normalizeTipoProdutoId} from '../default/catalog'
 
 const {toggle, isDark} = useTorqDarkMode()
 

@@ -1,5 +1,5 @@
-import type { BlocoLayout } from "../domain/bloco.types";
 import type { TipoProdutoId } from "./catalog";
+import type { BlocoLayout } from "../domain/bloco.types";
 
 
 export const BLOCOS_SEED: Record<TipoProdutoId, BlocoLayout[]> = {
@@ -121,5 +121,34 @@ export function cloneBlocosSeed(): Record<TipoProdutoId, BlocoLayout[]> {
     return {
         carro: BLOCOS_SEED.carro.map(cloneBloco),
         caminhao: BLOCOS_SEED.caminhao.map(cloneBloco),
+    }
+}
+
+export function proximaOrdem(blocos: BlocoLayout[], regiao: BlocoLayout['regiao']): number {
+    const naRegiao = blocos.filter((b)=> b.regiao === regiao)
+    if(naRegiao.length === 0) {
+        return 1
+    }
+    return Math.max(...naRegiao.map((b)=> b.ordem)) +1
+}
+
+export function criarBlocoVazio(tipoProduto: TipoProdutoId, blocos: BlocoLayout[]): BlocoLayout {
+    const suffix = Date.now().toString(36)
+    const regiao = 'conteudo_principal' as const 
+    return {
+        id: `bloco-${tipoProduto}-novo-${suffix}`,
+        titulo: 'Novo Bloco',
+        campos: [
+            {
+                id: `campos_${suffix}`,
+                rotulo: 'campo 1',
+                tipo: 'texto',
+                valorExemplo: 'exemplo'
+            }
+        ],
+        vizualizacao: 'card',
+        regiao,
+        ordem: proximaOrdem(blocos, regiao),
+        visivel: true
     }
 }

@@ -1,7 +1,9 @@
 import { defineStore } from "pinia";
 import { ref } from 'vue';
-import { cloneBlocosSeed } from "../default/blocos.seed";
 import type { TipoProdutoId } from "../default/catalog";
+import { cloneBlocosSeed, criarBlocoVazio } from "../default/blocos.seed";
+import { agruparBlocosPorRegiao, ordenarBlocos } from '../domain/agrupadorPorRegiao';
+import {adaptarCamposParaVizualizacao} from '../domain/vizualizacaoView';
 import type { BlocoLayout, CampoBloco, Regiao, Vizualizacao } from "../domain/bloco.types";
 
 function cloneCampo(campo: CampoBloco): CampoBloco {
@@ -13,7 +15,7 @@ function cloneCampo(campo: CampoBloco): CampoBloco {
 
 export const useRuntimeStore = defineStore('runtime', () => {
 
-    const blocosByProdutcType = ref(cloneBlocosSeed())
+    const blocosByProductType = ref(cloneBlocosSeed())
 
     const activeBlocoIdByProductType = ref<Record<TipoProdutoId, string | null>>({
         carro: null,
@@ -21,25 +23,25 @@ export const useRuntimeStore = defineStore('runtime', () => {
     })
 
     function getBlocos(tipoProduto: TipoProdutoId): BlocoLayout[] {
-        return blocosByProdutcType.value[tipoProduto]
+        return blocosByProductType.value[tipoProduto] ?? []
 
     }
 
     function getBloco(tipoProduto: TipoProdutoId, blocoId: string): BlocoLayout | undefined {
-        return blocosByProdutcType.value[tipoProduto].find((bloco) => bloco.id === blocoId)
+        return blocosByProductType.value[tipoProduto].find((bloco) => bloco.id === blocoId)
     }
 
     function getActiveBlocoId(tipoProduto: TipoProdutoId): string | null {
         return activeBlocoIdByProductType.value[tipoProduto]
     }
 
-    function setActiveBlocoId(tipoProduto: TipoProdutoId, blocoId: string): void {
+    function setActiveBlocoId(tipoProduto: TipoProdutoId, blocoId: string | null): void {
         activeBlocoIdByProductType.value[tipoProduto] = blocoId
     }
 
     function criarBloco(tipoProduto: TipoProdutoId): BlocoLayout {
         const bloco = criarBlocoVazio(tipoProduto, getBlocos(tipoProduto))
-        blocosByProdutcType.value[tipoProduto].push(bloco)
+        blocosByProductType.value[tipoProduto].push(bloco)
         activeBlocoIdByProductType.value[tipoProduto] = bloco.id
         return bloco
     }
@@ -76,8 +78,8 @@ export const useRuntimeStore = defineStore('runtime', () => {
         }
     }
 
-    function removerBloco(tipoProduto: TipoProdutoId, blocoId: BlocoLayout): void {
-        blocosByProdutcType.value[tipoProduto] = getBlocos(tipoProduto).filter(
+    function removerBloco(tipoProduto: TipoProdutoId, blocoId: string): void {
+        blocosByProductType.value[tipoProduto] = getBlocos(tipoProduto).filter(
             (bloco) => bloco.id !== blocoId
         )
         if (activeBlocoIdByProductType.value[tipoProduto] === blocoId) {
@@ -87,7 +89,7 @@ export const useRuntimeStore = defineStore('runtime', () => {
 
     function setBlocoVizualizacao(
         tipoProduto: TipoProdutoId,
-        blocoId: BlocoLayout,
+        blocoId: string,
         vizualizacao: Vizualizacao
     ): void {
         const bloco = getBloco(tipoProduto, blocoId)
@@ -100,40 +102,107 @@ export const useRuntimeStore = defineStore('runtime', () => {
 
     function setBlocoRegiao(
         tipoProduto: TipoProdutoId,
-        blocoId: BlocoLayout,
+        blocoId: string,
         regiao: Regiao
     ) {
         const bloco = getBloco(tipoProduto, blocoId)
-        if(bloco){
+        if (bloco) {
             bloco.regiao = regiao
         }
     }
 
     function setBlocoOrdem(
         tipoProduto: TipoProdutoId,
-        blocoId: BlocoLayout,
+        blocoId: string,
         ordem: number
     ) {
         const bloco = getBloco(tipoProduto, blocoId)
-        if(bloco){
+        if (bloco) {
             bloco.ordem = Math.max(1, ordem)
         }
     }
 
     function setBlocoVisivel(
         tipoProduto: TipoProdutoId,
-        blocoId: BlocoLayout,
+        blocoId: string,
         visivel: boolean
     ) {
         const bloco = getBloco(tipoProduto, blocoId)
-        if(bloco){
+        if (bloco) {
             bloco.visivel = visivel
         }
     }
 
-    //adicionar campos, remover campo, atualizar campo
-    //criar reset para o clone do BlocoSeed
-    //dar o return de tudo
+    function adicionarCampo(tipoProduto: TipoProdutoId, blocoId: string): void {
+        const bloco = getBloco(tipoProduto, blocoId)
+        if (!bloco) {
+            return
+        }
+        const suffix = Date.now().toString(36)
+        bloco.campos.push({
+            id: `campo_${ suffix }`,
+            rotulo: `Campo ${ bloco.campos.length + 1 }`,
+            tipo: 'texto',
+            valorExemplo: '',
+        })
+    }
+
+    function removerCampo(tipoProduto: TipoProdutoId, blocoId: string, campoId: string): void {
+        const bloco = getBloco(tipoProduto, blocoId)
+        if (!bloco || bloco.campos.length <= 1) {
+            return
+        }
+        bloco.campos = bloco.campos.filter((campo) => campo.id !== campoId)
+    }
+
+    function atualizarCampo(
+        tipoProduto: TipoProdutoId,
+        blocoId: string,
+        campoId: string,
+        patch: Partial<CampoBloco>,
+    ): void {
+        const bloco = getBloco(tipoProduto, blocoId)
+        if (!bloco) {
+            return
+        }
+        const campo = bloco.campos.find((item) => item.id === campoId)
+        if (!campo) {
+            return
+        }
+        Object.assign(campo, patch)
+        if (campo.tipo !== 'selecao') {
+            delete campo.opcoes
+        }
+    }
+
+    function reset(): void {
+        blocosByProductType.value = cloneBlocosSeed()
+        activeBlocoIdByProductType.value = { carro: null, caminhao: null }
+    }
+
+    return {
+        blocosByProductType,
+        activeBlocoIdByProductType,
+        getBlocos,
+        getBloco,
+        getActiveBlocoId,
+        setActiveBlocoId,
+        criarBloco,
+        atualizarBloco,
+        removerBloco,
+        setBlocoVizualizacao,
+        setBlocoRegiao,
+        setBlocoOrdem,
+        setBlocoVisivel,
+        adicionarCampo,
+        removerCampo,
+        atualizarCampo,
+        reset,
+        ordenarBlocos,
+        agruparBlocosPorRegiao,
+    }
+
+
+
 
 })
-
